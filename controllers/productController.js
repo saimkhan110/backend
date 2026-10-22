@@ -1,10 +1,20 @@
 const Product = require('../models/ProductModel');
+const Category = require('../models/categoryModel');
 const { deleteFile } = require('../utils/fileHelper');
+
+async function checkCategory(name) {
+    if (typeof name !== 'string' || !await Category.exists({ name: name.trim() })) {
+        const error = new Error('Please select an available category');
+        error.status = 400;
+        throw error;
+    }
+}
 
 // Create a product with an optional image.
 const createProduct = async (req, res, next) => {
     try {
         const { name, category, price, description, stock, isActive } = req.body;
+        await checkCategory(category);
         let image = null;
         if (req.file) {
             image = 'uploads/' + req.file.filename;
@@ -54,6 +64,7 @@ const updateProduct = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Product not found' });
         }
         const { name, category, price, description, stock, isActive } = req.body;
+        if (category !== undefined) await checkCategory(category);
         const oldImage = product.image;
         product.name = name ?? product.name;
         product.category = category ?? product.category;

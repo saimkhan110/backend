@@ -9,7 +9,7 @@ const productSchema = new mongoose.Schema({
     trim: true
 },
     price: { type: Number, required: [true, 'Product price is required'], min: 0 },
-    stock: { type: Number, default: 0, min: 0 },
+    stock: { type: Number, default: 0, min: 0, validate: { validator: Number.isInteger, message: 'Stock must be a whole number' } },
     image: { type: String, default: null },
     isActive: { type: Boolean, default: true }
 }, { timestamps: true });

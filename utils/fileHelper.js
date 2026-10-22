@@ -1,17 +1,12 @@
 const fs = require("fs");
 const path = require("path");
-
 const UPLOAD_DIR = path.join(__dirname, "..", "uploads");
-
-// Uploads folder automatically banao
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
 const deleteFile = (filename) => {
-  if (!filename) return;
-
+  if (!filename || filename === 'null') return;
   try {
+    // Records contain uploads/name.png; multer gives just name.png.
     const filePath = path.join(UPLOAD_DIR, path.basename(filename));
-
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }

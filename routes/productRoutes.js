@@ -1,21 +1,21 @@
 const express = require('express');
-const mongoose = require('mongoose');
-const upload = require('../middleware/productUpload');
-const { createProduct, getAllProducts, getProductByID, updateProduct, deleteProduct } = require('../controllers/productController');
 const router = express.Router();
+const upload = require('../middleware/upload');
+const { protect, authorize } = require('../middleware/authMiddleware'); // NEW
 
-router.param('id', (req, res, next, id) => {
-    if (!mongoose.isObjectIdOrHexString(id)) {
-        return res.status(400).json({ success: false, message: 'Invalid product ID' });
-    }
-    next();
-});
+const {
+createProduct,
+getAllProducts,
+getProductByID,
+updateProduct,
+deleteProduct,
+} = require('../controllers/productController');
 
-router.post('/', upload.single('image'), createProduct);
+// Read = anyone (public)
 router.get('/', getAllProducts);
 router.get('/:id', getProductByID);
-router.put('/:id', upload.single('image'), updateProduct);
-router.delete('/:id', deleteProduct);
-
+// Write = only a logged-in admin
+router.post('/', protect, authorize('admin'), upload.single('image'), createProduct);
+router.put('/:id', protect, authorize('admin'), upload.single('image'), updateProduct);
+router.delete('/:id', protect, authorize('admin'), deleteProduct);
 module.exports = router;
-
