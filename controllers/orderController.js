@@ -315,9 +315,85 @@ const cancelOrder = async (req, res) => {
     }
 };
 
+// ---------- 5) ADMIN: GET ALL ORDERS ----------
+// GET /api/orders/admin/all
+const getAllOrders = async (req, res) => {
+    try {
+        const orders = await Order.find()
+            .populate('user', 'name email')
+            .sort({ createdAt: -1 });
+
+        await Promise.all(orders.map((o) => withProducts(o)));
+
+        res.json({
+            success: true,
+            message: 'All orders fetched successfully',
+            count: orders.length,
+            orders
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch all orders',
+            error: error.message
+        });
+    }
+};
+
+// ---------- 6) ADMIN: UPDATE ORDER STATUS ----------
+// PUT /api/orders/admin/:id/status   body: { status }
+const updateOrderStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid order ID'
+            });
+        }
+
+        const allowed = ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'];
+        if (!status || !allowed.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid order status'
+            });
+        }
+
+        const order = await Order.findById(id);
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        order.status = status;
+        await order.save();
+        await order.populate('user', 'name email');
+        await withProducts(order);
+
+        res.json({
+            success: true,
+            message: 'Order status updated successfully',
+            order
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update order status',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     placeOrder,
     getMyOrders,
     getOrderById,
-    cancelOrder
+    cancelOrder,
+    getAllOrders,
+    updateOrderStatus
 };
