@@ -113,6 +113,32 @@ const OrderSchema = new mongoose.Schema(
             type: String,
             enum: ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'],
             default: 'Confirmed'
+        },
+        // Order confirmation email ka delivery status
+        // Pending = abhi bheji nahi | Sending = SMTP ko de di | Sent | Failed
+        // Isse DB me verify ho sakta hai ke customer ko email gayi ya nahi
+        emailStatus: {
+            type: String,
+            enum: ['Pending', 'Sending', 'Sent', 'Failed'],
+            default: 'Pending'
+        },
+        emailSentAt: {
+            type: Date
+        },
+        emailError: {
+            type: String
+        },
+        // Shipped / Delivered / Cancelled update email ka status
+        statusEmailStatus: {
+            type: String,
+            enum: ['Not Sent', 'Sent', 'Failed'],
+            default: 'Not Sent'
+        },
+        statusEmailSentAt: {
+            type: Date
+        },
+        statusEmailError: {
+            type: String
         }
     },
     {

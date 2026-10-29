@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const Order = require('../models/orderModel');
 const Cart = require('../models/cartModel');
 const Product = require('../models/ProductModel');
+const { sendOrderConfirmationEmail, sendOrderStatusEmail, isEmailConfigured } = require('../services/emailService');
 
 // ---------- Helpers ----------
 
@@ -172,12 +173,41 @@ const placeOrder = async (req, res) => {
         cart.totalPrice = 0;
         await cart.save();
 
-        // (h) 201 Created + order
+        // (h) Order confirmation email - BACKGROUND me bhejo
+        // Email fail ho jaye (SMTP down / galat password) to order fail NAHI hona chahiye.
+        // Status order document me save hota hai taake DB se verify ho sake.
+        if (isEmailConfigured()) {
+            sendOrderConfirmationEmail({
+                order,
+                customerEmail: req.user.email,
+                customerName: req.user.name
+            })
+                .then((result) =>
+                    Order.updateOne(
+                        { _id: order._id },
+                        result.success
+                            ? { emailStatus: 'Sent', emailSentAt: new Date() }
+                            : { emailStatus: 'Failed', emailError: result.error || 'Unknown error' }
+                    )
+                )
+                .catch((error) =>
+                    Order.updateOne(
+                        { _id: order._id },
+                        { emailStatus: 'Failed', emailError: error.message }
+                    )
+                )
+                // DB hiccup ho to bhi background email kabhi server crash na kare
+                .catch(() => {});
+        }
+
+        // (i) 201 Created + order
         await withProducts(order);
 
         res.status(201).json({
             success: true,
             message: 'Order placed successfully',
+            // Email background me ja raha hai - SMTP creds na hon to 'Not configured'
+            confirmationEmail: isEmailConfigured() ? 'Queued' : 'Not configured',
             order
         });
     } catch (error) {
@@ -370,14 +400,52 @@ const updateOrderStatus = async (req, res) => {
             });
         }
 
+        // Purana status yaad rakho - dobara same status save karne par
+        // customer ko duplicate email nahi jani chahiye
+        const previousStatus = order.status;
+
         order.status = status;
         await order.save();
         await order.populate('user', 'name email');
         await withProducts(order);
 
+        // Status badla to customer ko update email (Shipped / Delivered / Cancelled)
+        // Background me - email fail ho jaye to status update fail nahi hota.
+        const statusEmailStatuses = ['Shipped', 'Delivered', 'Cancelled'];
+        const shouldSendStatusEmail =
+            status !== previousStatus &&
+            statusEmailStatuses.includes(status) &&
+            isEmailConfigured() &&
+            Boolean(order.user?.email);
+
+        if (shouldSendStatusEmail) {
+            sendOrderStatusEmail({
+                order,
+                customerEmail: order.user.email,
+                customerName: order.user.name
+            })
+                .then((result) =>
+                    Order.updateOne(
+                        { _id: order._id },
+                        result.success
+                            ? { statusEmailStatus: 'Sent', statusEmailSentAt: new Date() }
+                            : { statusEmailStatus: 'Failed', statusEmailError: result.error || 'Unknown error' }
+                    )
+                )
+                .catch((error) =>
+                    Order.updateOne(
+                        { _id: order._id },
+                        { statusEmailStatus: 'Failed', statusEmailError: error.message }
+                    )
+                )
+                .catch(() => {});
+        }
+
         res.json({
             success: true,
             message: 'Order status updated successfully',
+            statusEmail:
+                shouldSendStatusEmail ? 'Queued' : status === previousStatus ? 'Not sent (status unchanged)' : 'Not sent',
             order
         });
     } catch (error) {
